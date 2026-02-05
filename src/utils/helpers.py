@@ -13,12 +13,10 @@ def round_step_size(quantity: float, step_size: float) -> float:
     Returns:
         Quantity rounded to valid step size.
     """
-    precision = Decimal(str(step_size)).as_tuple().exponent
-    precision = abs(int(precision))
+    step = Decimal(str(step_size))
     return float(
-        Decimal(str(quantity)).quantize(
-            Decimal(10) ** -precision, rounding=ROUND_DOWN
-        )
+        (Decimal(str(quantity)) / step).to_integral_value(rounding=ROUND_DOWN)
+        * step
     )
 
 
@@ -32,12 +30,10 @@ def round_price(price: float, tick_size: float) -> float:
     Returns:
         Price rounded to valid tick size.
     """
-    precision = Decimal(str(tick_size)).as_tuple().exponent
-    precision = abs(int(precision))
+    tick = Decimal(str(tick_size))
     return float(
-        Decimal(str(price)).quantize(
-            Decimal(10) ** -precision, rounding=ROUND_DOWN
-        )
+        (Decimal(str(price)) / tick).to_integral_value(rounding=ROUND_DOWN)
+        * tick
     )
 
 
