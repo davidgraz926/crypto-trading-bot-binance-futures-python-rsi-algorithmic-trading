@@ -28,6 +28,16 @@ MAX_OPEN_POSITIONS = 1
 POLL_INTERVAL_SECONDS = 60
 DRY_RUN = True  # paper-trading mode; set False for live trading
 
+# MEV Monitoring
+MEV_ENABLED = os.getenv("MEV_ENABLED", "false").lower() == "true"
+MEV_CHAIN = os.getenv("MEV_CHAIN", "ethereum")  # "ethereum" or "bsc"
+MEV_RPC_URL = os.getenv("MEV_RPC_URL", "")
+MEV_MIN_SWAP_VALUE_USD = float(os.getenv("MEV_MIN_SWAP_VALUE_USD", "50000"))
+MEV_WHALE_THRESHOLD_USD = float(os.getenv("MEV_WHALE_THRESHOLD_USD", "500000"))
+MEV_PRESSURE_WINDOW_SECONDS = float(os.getenv("MEV_PRESSURE_WINDOW_SECONDS", "300"))
+MEV_PRESSURE_WEIGHT = float(os.getenv("MEV_PRESSURE_WEIGHT", "0.3"))
+MEV_POLL_INTERVAL_SECONDS = float(os.getenv("MEV_POLL_INTERVAL_SECONDS", "5"))
+
 # Logging
 LOG_LEVEL = "INFO"
 LOG_DIR = "logs"

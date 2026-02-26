@@ -1,22 +1,28 @@
 import logging
 import time
+from typing import Optional
 
 import pandas as pd
 
 from config.settings import (
     DRY_RUN,
+    MEV_MIN_SWAP_VALUE_USD,
+    MEV_PRESSURE_WEIGHT,
+    MEV_PRESSURE_WINDOW_SECONDS,
+    MEV_WHALE_THRESHOLD_USD,
     POLL_INTERVAL_SECONDS,
     SYMBOL,
     TIMEFRAME,
 )
 from src.exchange import ExchangeClient
+from src.mev_analyzer import compute_mev_pressure, detect_whale_activity
 from src.risk_manager import (
     calculate_position_size,
     can_open_position,
     compute_stop_loss,
     compute_take_profit,
 )
-from src.strategy import Signal, evaluate
+from src.strategy import Signal, evaluate, evaluate_with_mev
 from src.utils import round_price, round_quantity
 
 logger = logging.getLogger("trading_bot")
@@ -25,8 +31,13 @@ logger = logging.getLogger("trading_bot")
 class TradingBot:
     """Core trading bot that ties together the exchange, strategy, and risk management."""
 
-    def __init__(self, exchange: ExchangeClient) -> None:
+    def __init__(
+        self,
+        exchange: ExchangeClient,
+        mempool_monitor: Optional[object] = None,
+    ) -> None:
         self.exchange = exchange
+        self.mempool_monitor = mempool_monitor
         self.running = False
         self._load_symbol_filters()
 
@@ -67,7 +78,38 @@ class TradingBot:
             logger.warning("No candle data received, skipping tick")
             return
 
-        signal, rsi = evaluate(candles)
+        # Compute MEV pressure if monitor is available
+        mev_pressure = None
+        if self.mempool_monitor is not None:
+            pending_swaps = self.mempool_monitor.get_pending_large_swaps(
+                min_value_usd=MEV_MIN_SWAP_VALUE_USD
+            )
+            mev_pressure = compute_mev_pressure(
+                pending_swaps,
+                window_seconds=MEV_PRESSURE_WINDOW_SECONDS,
+            )
+            whale_swaps = detect_whale_activity(
+                pending_swaps, MEV_WHALE_THRESHOLD_USD
+            )
+            if whale_swaps:
+                logger.info("Whale activity detected: %d swaps", len(whale_swaps))
+
+        # Use combined evaluation if MEV data is available
+        if mev_pressure is not None:
+            signal, rsi, combined = evaluate_with_mev(
+                candles,
+                mev_pressure=mev_pressure,
+                mev_weight=MEV_PRESSURE_WEIGHT,
+            )
+            logger.info(
+                "Combined score=%.2f (RSI=%s, MEV=%.2f)",
+                combined or 0,
+                f"{rsi:.2f}" if rsi is not None else "N/A",
+                mev_pressure,
+            )
+        else:
+            signal, rsi = evaluate(candles)
+
         if signal == Signal.HOLD:
             return
 
